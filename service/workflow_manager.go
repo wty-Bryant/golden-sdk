@@ -1,18 +1,49 @@
 package service
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 )
 
 type WorkflowManager struct {
-	Workflows map[string]*Workflow
+	workflows map[string]*Workflow
+	triggers  map[string]*Trigger
 }
 
 func (wm *WorkflowManager) CreateWorkflow(ctx context.Context, input *CreateWorkflowInput) (CreateWorkflowOutput, error) {
-	var out CreateWorkflowOutput
+	workflow := &Workflow{
+		ID:         input.ID,
+		Name:       input.Name,
+		Status:     input.Status,
+		Components: input.Components,
+		Variables:  input.Variables,
+	}
+	if wm.workflows == nil {
+		wm.workflows = make(map[string]*Workflow)
+	}
+	wm.workflows[input.ID] = workflow
+
+	out := CreateWorkflowOutput{
+		Metadata: make(map[string]ComponentMetadata),
+	}
+	for _, c := range input.Components {
+		cm := ComponentMetadata{
+			ID:   c.ID,
+			Type: ComponentType(c.Type),
+			Next: c.Next,
+		}
+		out.Metadata[c.ID] = cm
+	}
+
 	return out, nil
 }
 
@@ -38,7 +69,7 @@ type ComponentInfo struct {
 }
 
 func (wm *WorkflowManager) createWorkflowComponents(ctx context.Context, workflowID string) (map[string]Component, error) {
-	componentsInfo := wm.Workflows[workflowID].Components
+	componentsInfo := wm.workflows[workflowID].Components
 	components := make(map[string]Component, 0)
 	for _, ci := range componentsInfo {
 		switch ci.Type {
@@ -65,8 +96,14 @@ func (wm *WorkflowManager) createWorkflowComponents(ctx context.Context, workflo
 }
 
 func (wm *WorkflowManager) ListWorkflows() (ListWorkflowsOutput, error) {
-	var out ListWorkflowsOutput
-	return out, nil
+	workflows := make([]Workflow, 0)
+	for _, workflow := range wm.workflows {
+		workflows = append(workflows, *workflow)
+	}
+
+	return ListWorkflowsOutput{
+		workflows: workflows,
+	}, nil
 }
 
 type ListWorkflowsOutput struct {
@@ -74,6 +111,14 @@ type ListWorkflowsOutput struct {
 }
 
 func (wm *WorkflowManager) CreateWorkflowTrigger(ctx context.Context, input *CreateWorkflowTriggerInput) error {
+	trigger := &Trigger{
+		input: *input,
+	}
+
+	if wm.triggers == nil {
+		wm.triggers = make(map[string]*Trigger)
+	}
+	wm.triggers[input.ID] = trigger
 	return nil
 }
 
@@ -88,27 +133,31 @@ type CreateWorkflowTriggerInput struct {
 }
 
 type Trigger struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Type   string `json:"workflow_trigger_type"`
-	Status Status `json:"status"`
+	input CreateWorkflowTriggerInput
 }
 
 func (wm *WorkflowManager) ListWorkflowTriggers() (ListWorkflowTriggersOutput, error) {
-	var out ListWorkflowTriggersOutput
-	return out, nil
+	triggers := make([]Trigger, 0)
+	for _, t := range wm.triggers {
+		triggers = append(triggers, *t)
+	}
+
+	return ListWorkflowTriggersOutput{
+		Triggers: triggers,
+	}, nil
 }
 
 type ListWorkflowTriggersOutput struct {
-	triggers []Trigger `json:"triggers"`
+	Triggers []Trigger `json:"triggers"`
 }
 
 type Workflow struct {
-	ID         string                   `json:"id"`
-	Name       string                   `json:"name"`
-	Endpoint   string                   `json:"endpoint"`
-	Status     Status                   `json:"status"`
-	Components map[string]ComponentInfo // ID to Component
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Endpoint   string          `json:"endpoint"`
+	Status     Status          `json:"status"`
+	Components []ComponentInfo // ID to Component
+	Variables  map[string]interface{}
 }
 
 type ComponentMetadata struct {
@@ -133,7 +182,9 @@ type ReadFileInput struct {
 	directory string
 }
 
-type ReadFileOutput struct{}
+type ReadFileOutput struct {
+	files []string
+}
 
 func (c *ComponentReadFile) ID() string { return c.id }
 
@@ -145,8 +196,20 @@ func (c *ComponentReadFile) Do(ctx context.Context, input interface{}) (output i
 	return c.do(ctx, in)
 }
 
-func (c *ComponentReadFile) do(ctx context.Context, input ReadFileInput) (output ReadFileOutput, err error) {
-	return ReadFileOutput{}, nil
+func (c *ComponentReadFile) do(ctx context.Context, input ReadFileInput) (ReadFileOutput, error) {
+	files := make([]string, 0)
+	err := filepath.WalkDir(input.directory, func(path string, d fs.DirEntry, err error) error {
+		if !d.IsDir() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return ReadFileOutput{}, err
+	}
+	return ReadFileOutput{
+		files: files,
+	}, nil
 }
 
 // file zipper component
@@ -157,10 +220,13 @@ type ComponentZipFile struct {
 }
 
 type ZipFileInput struct {
-	files []string
+	files   []string
+	zipFile string
 }
 
-type ZipFileOutput struct{}
+type ZipFileOutput struct {
+	zipFile string
+}
 
 func (c *ComponentZipFile) ID() string { return c.id }
 
@@ -173,7 +239,57 @@ func (c *ComponentZipFile) Do(ctx context.Context, input interface{}) (output in
 }
 
 func (c *ComponentZipFile) do(ctx context.Context, input ZipFileInput) (output ZipFileOutput, err error) {
-	return ZipFileOutput{}, nil
+	// Create a new zip archive.
+	zipFile, err := os.Create(input.zipFile)
+	if err != nil {
+		return ZipFileOutput{}, fmt.Errorf("error when creating zip file %s: %v", input.zipFile, err)
+	}
+	defer zipFile.Close()
+
+	// Create a new writer for the zip archive.
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	for _, file := range input.files {
+		var fileInfo os.FileInfo
+		var header *zip.FileHeader
+		var writer io.Writer
+		// Open the file to be added to the archive.
+		fileToZip, err := os.Open(file)
+		defer fileToZip.Close()
+		if err != nil {
+			return ZipFileOutput{}, fmt.Errorf("error when opening file %s: %v", file, err)
+		}
+
+		// Create a new file header for the file.
+		fileInfo, err = fileToZip.Stat()
+		if err != nil {
+			return ZipFileOutput{}, fmt.Errorf("error when stating file %s: %v", file, err)
+		}
+
+		header, err = zip.FileInfoHeader(fileInfo)
+		if err != nil {
+			return ZipFileOutput{}, fmt.Errorf("error when building info header of file %s: %v", file, err)
+		}
+		// Set the file header name to the name of the file.
+		header.Name = file
+
+		// Add the file header to the zip archive.
+		writer, err = zipWriter.CreateHeader(header)
+		if err != nil {
+			return ZipFileOutput{}, fmt.Errorf("error when creating zip writer of file %s: %v", file, err)
+		}
+
+		// Write the file contents to the zip archive.
+		_, err = io.Copy(writer, fileToZip)
+		if err != nil {
+			return ZipFileOutput{}, fmt.Errorf("error when zipping content of file %s: %v", file, err)
+		}
+	}
+
+	return ZipFileOutput{
+		zipFile: input.zipFile,
+	}, nil
 }
 
 // s3 PutObject component
@@ -185,6 +301,7 @@ type ComponentPutObject struct {
 
 type PutObjectInput struct {
 	bucket string
+	region string
 	files  []string
 }
 
@@ -201,6 +318,28 @@ func (c *ComponentPutObject) Do(ctx context.Context, input interface{}) (output 
 }
 
 func (c *ComponentPutObject) do(ctx context.Context, input PutObjectInput) (output PutObjectOutput, err error) {
+	cfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion(input.region),
+	)
+	if err != nil {
+		return PutObjectOutput{}, fmt.Errorf("failed to load aws config: %v", err)
+	}
+
+	client := s3.NewFromConfig(cfg)
+	for _, file := range input.files {
+		body, err := os.Open(file)
+		if err != nil {
+			return PutObjectOutput{}, fmt.Errorf("error when opening file %s: %v", file, err)
+		}
+		_, err = client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket: aws.String(input.bucket),
+			Key:    aws.String(file),
+			Body:   body,
+		})
+		if err != nil {
+			return PutObjectOutput{}, fmt.Errorf("error when put object %s: %v", file, err)
+		}
+	}
 	return PutObjectOutput{}, nil
 }
 
