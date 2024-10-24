@@ -52,7 +52,10 @@ type CreateProjectResourcesInput struct {
 
 // ListProjects lists all projects info
 func (rm *ResourceManager) ListProjects(ctx context.Context) ([]Project, error) {
-	var projects []Project
+	projects := make([]Project, 0)
+	for _, p := range rm.projects {
+		projects = append(projects, p)
+	}
 	return projects, nil
 }
 

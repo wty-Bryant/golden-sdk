@@ -58,13 +58,15 @@ func createProjectResourcesHandler(w http.ResponseWriter, r *http.Request, param
 	}
 
 	if err := rm.CreateProjectResources(context.Background(), input); err != nil {
-		writeErrorResponse(w, http.StatusBadRequest, "failed to create project resources")
+		writeErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("failed to create project resources: %v", err))
 		return
 	}
 	writeOKResponse(w, *input)
 }
 
 func listProjectsHandler(w http.ResponseWriter, r *http.Request, param httprouter.Params) {
+	resourceManager := &rm
+	_ = resourceManager
 	projects, err := rm.ListProjects(context.Background())
 	if err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "failed to list projects")
@@ -80,6 +82,8 @@ func createWorkflowHandler(w http.ResponseWriter, r *http.Request, param httprou
 		return
 	}
 
+	workflowManager := &wm
+	_ = workflowManager
 	output, err := wm.CreateWorkflow(context.Background(), input)
 	if err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "failed to create workflow")
@@ -105,6 +109,8 @@ func createWorkflowTriggerHandler(w http.ResponseWriter, r *http.Request, param 
 		return
 	}
 
+	workflowManager := &wm
+	_ = workflowManager
 	err := wm.CreateWorkflowTrigger(context.Background(), input)
 	if err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "failed to create workflow trigger")

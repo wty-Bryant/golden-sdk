@@ -62,10 +62,10 @@ type CreateWorkflowOutput struct {
 }
 
 type ComponentInfo struct {
-	ID     string              `json:"id"`
-	Type   string              `json:"type"`
-	Inputs []map[string]string `json:"parameters"`
-	Next   string              `json:"next"` // next component id
+	ID     string                 `json:"id"`
+	Type   string                 `json:"workflow_step_type"`
+	Inputs map[string]interface{} `json:"parameters"`
+	Next   string                 `json:"next"` // next component id
 }
 
 func (wm *WorkflowManager) createWorkflowComponents(ctx context.Context, workflowID string) (map[string]Component, error) {
