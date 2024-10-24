@@ -8,26 +8,38 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 )
 
-var resources = make([]Resource, 0)
-
 type ResourceManager struct {
-	projects []string
+	projects map[string]Project
 }
 
 // CreateProject stores resources metadata into database
 func (rm *ResourceManager) CreateProject(ctx context.Context, input *CreateProjectInput) error {
+	if rm.projects == nil {
+		rm.projects = make(map[string]Project)
+	}
+
+	rm.projects[input.ID] = Project{
+		Name:      input.Name,
+		ID:        input.ID,
+		Resources: input.Resources,
+	}
+
 	return nil
 }
 
 // CreateProjectResources is called to initialize resources when workflow is triggerred
 func (rm *ResourceManager) CreateProjectResources(ctx context.Context, input *CreateProjectResourcesInput) error {
+	resources := rm.projects[input.ProjectID].Resources
 	for _, r := range resources {
 		switch r.Type {
 		case "S3:Bucket":
-			rm.createBucket(ctx, bucketInput{
+			_, err := rm.createBucket(ctx, bucketInput{
 				bucket: r.Properties["BucketName"],
 				region: r.Properties["Region"],
 			})
+			if err != nil {
+				return err
+			}
 		default:
 		}
 	}
@@ -67,9 +79,9 @@ func (rm *ResourceManager) createBucket(ctx context.Context, input bucketInput) 
 }
 
 type Project struct {
-	Name string            `json:"name"`
-	ID   string            `json:"id"`
-	ARNs map[string]string `json:"arns"`
+	Name      string     `json:"name"`
+	ID        string     `json:"id"`
+	Resources []Resource `json:"resources"`
 }
 
 type CreateProjectInput struct {

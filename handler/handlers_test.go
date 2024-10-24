@@ -9,7 +9,7 @@ import (
 )
 
 func TestCreateProject(t *testing.T) {
-	input := strings.NewReader("{\n    \"name\": \"Backup Workflow Resources\"\n    \"id\": \"project-001\",\n    \"resources\": [\n        {\n            \"type\": \"S3:Bucket\",\n            \"properties\": {\n               \"BucketName\": \"\"\n            }\n        }\n    ]\n}")
+	input := strings.NewReader("{\n    \"name\": \"Backup Workflow Resources\",\n    \"id\": \"project-001\",\n    \"resources\": [\n        {\n            \"type\": \"S3:Bucket\",\n            \"properties\": {\n               \"BucketName\": \"resource-bucket\",\n	 \"Region\": \"us-west-2\"\n           }\n        }\n    ]\n}")
 	// A request with a non-existant isdn
 	req1, err := http.NewRequest("POST", "/create-project", input)
 	if err != nil {
@@ -17,8 +17,8 @@ func TestCreateProject(t *testing.T) {
 	}
 
 	rr1 := newRequestRecorder(req1, "POST", "/create-project", createProjectHandler)
-	if rr1.Code != 422 {
-		t.Fatalf("Expected response code to be 422, got %v", rr1.Code)
+	if rr1.Code != 200 {
+		t.Fatalf("Expected response code to be 200, got %v", rr1.Code)
 	}
 }
 

@@ -41,6 +41,8 @@ func createProjectHandler(w http.ResponseWriter, r *http.Request, param httprout
 		return
 	}
 
+	resourceManager := &rm
+	_ = resourceManager
 	if err := rm.CreateProject(context.Background(), input); err != nil {
 		writeErrorResponse(w, http.StatusBadRequest, "failed to create project")
 		return
