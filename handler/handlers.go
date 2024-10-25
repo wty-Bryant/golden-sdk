@@ -72,7 +72,7 @@ func listProjectsHandler(w http.ResponseWriter, r *http.Request, param httproute
 		writeErrorResponse(w, http.StatusBadRequest, "failed to list projects")
 		return
 	}
-	writeOKResponse(w, projects)
+	writeListProjectsOKResponse(w, projects)
 }
 
 func createWorkflowHandler(w http.ResponseWriter, r *http.Request, param httprouter.Params) {
@@ -99,7 +99,7 @@ func listWorkflowsHandler(w http.ResponseWriter, r *http.Request, param httprout
 		return
 	}
 
-	writeOKResponse(w, out)
+	writeOKResponse(w, out.Workflows)
 }
 
 func createWorkflowTriggerHandler(w http.ResponseWriter, r *http.Request, param httprouter.Params) {
@@ -126,7 +126,7 @@ func listWorkflowTriggersHandler(w http.ResponseWriter, r *http.Request, param h
 		return
 	}
 
-	writeOKResponse(w, out)
+	writeOKResponse(w, out.Triggers)
 }
 
 // Writes the response as a standard JSON response with StatusOK
@@ -134,6 +134,14 @@ func writeOKResponse(w http.ResponseWriter, m interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(&JsonResponse{Data: m}); err != nil {
+		writeErrorResponse(w, http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func writeListProjectsOKResponse(w http.ResponseWriter, projects []service.Project) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(projects); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, "Internal Server Error")
 	}
 }

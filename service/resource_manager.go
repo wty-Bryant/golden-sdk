@@ -21,6 +21,7 @@ func (rm *ResourceManager) CreateProject(ctx context.Context, input *CreateProje
 	rm.projects[input.ID] = Project{
 		Name:      input.Name,
 		ID:        input.ID,
+		Status:    StatusActive,
 		Resources: input.Resources,
 	}
 
@@ -84,6 +85,7 @@ func (rm *ResourceManager) createBucket(ctx context.Context, input bucketInput) 
 type Project struct {
 	Name      string     `json:"name"`
 	ID        string     `json:"id"`
+	Status    Status     `json:"status""`
 	Resources []Resource `json:"resources"`
 }
 
@@ -94,6 +96,7 @@ type CreateProjectInput struct {
 }
 
 type Resource struct {
+	ID         string            `json:"id"`
 	Type       string            `json:"type"`
 	Properties map[string]string `json:"properties"`
 }

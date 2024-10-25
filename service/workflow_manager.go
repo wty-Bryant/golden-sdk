@@ -48,13 +48,30 @@ func (wm *WorkflowManager) CreateWorkflow(ctx context.Context, input *CreateWork
 }
 
 type CreateWorkflowInput struct {
-	ID         string                 `json:"id"`
-	Name       string                 `json:"name"`
-	Input      map[string]interface{} `json:"input"`
-	Variables  map[string]interface{} `json:"variables"`
-	Components []ComponentInfo        `json:"steps"`
-	Status     Status                 `json:"status"`
-	Output     map[string]interface{} `json:"output"`
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	ProjectID  string           `json:"projectId"`
+	Inputs     []WorkflowInput  `json:"input"`
+	Variables  []Variable       `json:"variables"`
+	Components []ComponentInfo  `json:"steps"`
+	Status     Status           `json:"status"`
+	Output     []WorkflowOutput `json:"output"`
+}
+
+type WorkflowInput struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type WorkflowOutput struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type Variable struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	DefaultValue string `json:"defaultValue"`
 }
 
 type CreateWorkflowOutput struct {
@@ -62,10 +79,11 @@ type CreateWorkflowOutput struct {
 }
 
 type ComponentInfo struct {
-	ID     string                 `json:"id"`
-	Type   string                 `json:"workflow_step_type"`
-	Inputs map[string]interface{} `json:"parameters"`
-	Next   string                 `json:"next"` // next component id
+	ID      string     `json:"id"`
+	Type    string     `json:"type"`
+	Inputs  []Variable `json:"input"`
+	Outputs []Variable `json:"output"`
+	Next    string     `json:"next"` // next component id
 }
 
 func (wm *WorkflowManager) createWorkflowComponents(ctx context.Context, workflowID string) (map[string]Component, error) {
@@ -102,12 +120,12 @@ func (wm *WorkflowManager) ListWorkflows() (ListWorkflowsOutput, error) {
 	}
 
 	return ListWorkflowsOutput{
-		workflows: workflows,
+		Workflows: workflows,
 	}, nil
 }
 
 type ListWorkflowsOutput struct {
-	workflows []Workflow `json:"workflows"`
+	Workflows []Workflow `json:"workflows"`
 }
 
 func (wm *WorkflowManager) CreateWorkflowTrigger(ctx context.Context, input *CreateWorkflowTriggerInput) error {
@@ -125,9 +143,9 @@ func (wm *WorkflowManager) CreateWorkflowTrigger(ctx context.Context, input *Cre
 type CreateWorkflowTriggerInput struct {
 	ID         string                 `json:"id"`
 	Name       string                 `json:"name"`
-	Type       string                 `json:"workflow_trigger_type"`
-	Config     map[string]interface{} `json:"trigger_conf"`
-	WorkflowID string                 `json:"workflow_id"`
+	Type       string                 `json:"type"`
+	Config     map[string]interface{} `json:"config"`
+	WorkflowID string                 `json:"workflowId"`
 	Input      string                 `json:"input"`
 	Status     Status                 `json:"status"`
 }
@@ -137,9 +155,9 @@ type Trigger struct {
 }
 
 func (wm *WorkflowManager) ListWorkflowTriggers() (ListWorkflowTriggersOutput, error) {
-	triggers := make([]Trigger, 0)
+	triggers := make([]CreateWorkflowTriggerInput, 0)
 	for _, t := range wm.triggers {
-		triggers = append(triggers, *t)
+		triggers = append(triggers, t.input)
 	}
 
 	return ListWorkflowTriggersOutput{
@@ -148,7 +166,7 @@ func (wm *WorkflowManager) ListWorkflowTriggers() (ListWorkflowTriggersOutput, e
 }
 
 type ListWorkflowTriggersOutput struct {
-	Triggers []Trigger `json:"triggers"`
+	Triggers []CreateWorkflowTriggerInput `json:"triggers"`
 }
 
 type Workflow struct {
@@ -157,7 +175,7 @@ type Workflow struct {
 	Endpoint   string          `json:"endpoint"`
 	Status     Status          `json:"status"`
 	Components []ComponentInfo // ID to Component
-	Variables  map[string]interface{}
+	Variables  []Variable
 }
 
 type ComponentMetadata struct {

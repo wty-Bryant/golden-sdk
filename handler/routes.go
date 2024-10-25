@@ -19,13 +19,13 @@ type Routes []Route
 func AllRoutes() Routes {
 	routes := Routes{
 		Route{"Index", "GET", "/", index},
-		Route{"CreateProject", "POST", "/create-project", createProjectHandler},
-		Route{"CreateProjectResources", "POST", "/create-project-resources", createProjectResourcesHandler},
-		Route{"ListProjects", "GET", "/list-projects", listProjectsHandler},
-		Route{"CreateWorkflow", "POST", "/create-workflow", createWorkflowHandler},
-		Route{"ListWorkflows", "GET", "/list-workflows", listWorkflowsHandler},
-		Route{"CreateWorkflowTrigger", "POST", "/create-workflow-trigger", createWorkflowTriggerHandler},
-		Route{"ListTriggers", "GET", "/list-workflow-triggers", listWorkflowTriggersHandler},
+		Route{"CreateProject", "POST", "/resourceManager/createProject", createProjectHandler},
+		Route{"CreateProjectResources", "POST", "/resourceManager/createProjectResources", createProjectResourcesHandler},
+		Route{"ListProjects", "GET", "/resourceManager/listProjects", listProjectsHandler},
+		Route{"CreateWorkflow", "POST", "/workflowManager/createWorkflow", createWorkflowHandler},
+		Route{"ListWorkflows", "GET", "/workflowManager/listWorkflows", listWorkflowsHandler},
+		Route{"CreateWorkflowTrigger", "POST", "/workflowTriggerManager/createTrigger", createWorkflowTriggerHandler},
+		Route{"ListTriggers", "GET", "/workflowTriggerManager/listTriggers", listWorkflowTriggersHandler},
 	}
 	return routes
 }
